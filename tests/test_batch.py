@@ -15,7 +15,7 @@ def run_batch_test(dsl_script, test_case_file):
 
     # 检查文件
     if not os.path.exists(dsl_script) or not os.path.exists(test_case_file):
-        print("[!] 错误: 文件路径不存在")
+        print(f"[!] 错误: 文件路径不存在 -> {test_case_file}")
         return
 
     # 初始化执行器
@@ -64,7 +64,6 @@ def run_batch_test(dsl_script, test_case_file):
             actual_response = ""
 
         # 验证结果 (断言)
-        # 只要实际回复不为空，且包含关键词，就算通过
         if actual_response and expected_keyword in actual_response:
             print(f"[PASS] 输入: '{user_input}'")
             print(f"       -> 期望包含: '{expected_keyword}'")
@@ -85,22 +84,26 @@ def run_batch_test(dsl_script, test_case_file):
 
 
 if __name__ == "__main__":
-    # 运行批量测试
+    # ==========================================
+    # 场景 1: 电商客服 (2个分支)
+    # ==========================================
+    print("\n📦 >>>>> [场景1] 电商机器人测试开始 <<<<<")
+    run_batch_test("scripts/ecommerce_dsl.rsl", "tests/test_data/ecommerce_cases.txt")
+    run_batch_test("scripts/ecommerce_dsl.rsl", "tests/test_data/ecommerce_logistics.txt")
 
-    # 1. 测试电商
-    run_batch_test(
-        dsl_script="scripts/ecommerce_dsl.rsl",
-        test_case_file="tests/test_data/ecommerce_cases.txt"
-    )
+    # ==========================================
+    # 场景 2: 电信客服 (2个分支)
+    # ==========================================
+    print("\n📞 >>>>> [场景2] 电信机器人测试开始 <<<<<")
+    run_batch_test("scripts/telecom_dsl.rsl", "tests/test_data/telecom_cases.txt")
+    # 新增: 升级套餐测试
+    run_batch_test("scripts/telecom_dsl.rsl", "tests/test_data/telecom_upgrade.txt")
 
-    # 2. 测试电信
-    run_batch_test(
-        dsl_script="scripts/telecom_dsl.rsl",
-        test_case_file="tests/test_data/telecom_cases.txt"
-    )
-
-    # 3. 测试 IT 支持
-    run_batch_test(
-        dsl_script="scripts/tech_support_dsl.rsl",
-        test_case_file="tests/test_data/tech_cases.txt"
-    )
+    # ==========================================
+    # 场景 3: IT技术支持 (3个分支)
+    # ==========================================
+    print("\n💻 >>>>> [场景3] IT技术支持测试开始 <<<<<")
+    run_batch_test("scripts/tech_support_dsl.rsl", "tests/test_data/tech_cases.txt")
+    run_batch_test("scripts/tech_support_dsl.rsl", "tests/test_data/tech_cases_blue_screen.txt")
+    # 新增: 网络故障测试
+    run_batch_test("scripts/tech_support_dsl.rsl", "tests/test_data/tech_cases_network.txt")

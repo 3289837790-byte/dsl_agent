@@ -1,14 +1,39 @@
 import os
 import sys
+from dotenv import load_dotenv  # 1. 导入 dotenv 加载工具
 from dsl.executor import DSLExecutor
+
+# 2. 强力修复路径 (防止报错 ModuleNotFoundError)
+# 这两行代码保证了无论你在哪里运行 main.py，它都能找到 dsl 和 llm 包
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
 
 
 def main():
+    # 3. 显式加载环境变量 (.env)
+    # 这样程序一启动就会读取你的 API Key，不用等到调用 LLM 时才读
+    load_dotenv()
+
+    # 检查一下 Key 是否加载成功 (调试用，可删)
+    if not os.getenv("LLM_API_KEY"):
+        print("⚠️ 警告: 未检测到 LLM_API_KEY，请检查 .env 文件！")
+
     print("==========================================")
     print("   基于领域特定语言(DSL)的智能Agent系统")
     print("==========================================")
 
-    # 1. 列出可用脚本
+    # --- 新增的代码 START ---
+    model_name = os.getenv("LLM_MODEL", "Unknown-Model")
+    base_url = os.getenv("LLM_BASE_URL", "Unknown-URL")
+
+    print(f"🚀 AI 引擎加载中...")
+    print(f"🔧 服务提供商: SiliconFlow (硅基流动)")
+    print(f"🧠 当前模型: {model_name}")  # 这里会显示 DeepSeek-V3
+    print(f"🔗 接口地址: {base_url}")
+    print("==========================================")
+    # --- 新增的代码 END ---
+
+    # 4. 列出可用脚本
     script_dir = "scripts"
     if not os.path.exists(script_dir):
         os.makedirs(script_dir)
@@ -23,9 +48,14 @@ def main():
     for idx, f in enumerate(files):
         print(f"{idx + 1}. {f}")
 
-    # 2. 用户选择脚本
+    # 5. 用户选择脚本
     try:
-        choice = int(input("\n请输入序号: ")) - 1
+        choice_str = input("\n请输入序号: ").strip()
+        if not choice_str:
+            choice = 0  # 默认选第一个
+        else:
+            choice = int(choice_str) - 1
+
         selected_file = os.path.join(script_dir, files[choice])
     except (ValueError, IndexError):
         print("输入无效，默认加载第一个脚本。")
@@ -34,10 +64,10 @@ def main():
     print(f"\n正在加载脚本: {selected_file} ...")
 
     try:
-        # 3. 初始化执行器
+        # 6. 初始化执行器
         executor = DSLExecutor(selected_file)
 
-        # 4. 开始对话循环
+        # 7. 开始对话循环
         print(f"Domain: {executor.script.domain}")
         print("-" * 30)
 

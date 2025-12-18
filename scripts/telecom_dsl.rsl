@@ -1,0 +1,31 @@
+domain "电信宽带助手"
+state start:
+    response "您好，中国电信为您服务。请问是要办理套餐升级，还是报修网络故障？"
+    transition upgrade_plan "升级套餐" -> recommend_plan
+    transition report_issue "网络故障报修" -> ask_issue_detail
+
+state recommend_plan:
+    response "我们现在有千兆光纤套餐，每月仅需199元。您感兴趣吗？"
+    transition accept_offer "感兴趣/同意办理" -> handle_upgrade
+    transition reject_offer "太贵了/不需要" -> finish_conversation
+
+state handle_upgrade:
+    response "好的，已为您登记办理意向，稍后会有专员联系您。"
+    end
+
+state finish_conversation:
+    response "好的，没关系。祝您生活愉快！"
+    end
+
+state ask_issue_detail:
+    response "请问具体是出现了什么故障？（例如：无法连接/网速慢/光猫亮红灯）"
+    transition issue_red_light "光猫亮红灯" -> auto_fix_check
+    transition issue_slow "网速慢或无法连接" -> reset_modem
+
+state auto_fix_check:
+    response "检测到光路信号中断，已为您自动派单，维修师傅将在2小时内上门。"
+    end
+
+state reset_modem:
+    response "请尝试重启光猫（断电5分钟后再接通）。如果问题依旧，请再次联系我们要人工服务。"
+    end

@@ -1,0 +1,55 @@
+domain "IT技术支持专家"
+
+state start:
+    response "您好，IT 部门为您服务。请问您的电脑遇到什么问题了？（蓝屏/无法上网/开不了机）"
+    transition issue_blue_screen "蓝屏/死机" -> check_restart
+    transition issue_network "无法上网/没网" -> check_wifi
+    transition issue_power "黑屏/开不了机" -> check_power_cable
+
+state check_power_cable:
+    response "请检查电源线是否插紧，或者电池是否有电。检查后问题解决了吗？"
+    transition solved "解决了/好了" -> finish_good
+    transition not_solved "没用/还是不行" -> contact_admin
+
+state check_wifi:
+    response "请尝试关闭再打开 Wi-Fi 开关。如果不行，请问其他人能上网吗？"
+    transition others_can "其他人能上" -> check_dns
+    transition others_cannot "其他人都不能上" -> network_outage
+
+state check_dns:
+    response "那可能是您的 DNS 设置问题，请尝试自动获取 IP 地址。"
+    end
+
+state network_outage:
+    response "那说明是公司网络故障，我已经通知网管抢修，请稍候。"
+    end
+
+state check_restart:
+    response "蓝屏问题通常重启能解决 90% 的故障。您尝试重启了吗？"
+    transition tried_restart "重启过了/试过了" -> hardware_check
+    transition not_tried "还没试" -> ask_to_restart
+
+state ask_to_restart:
+    response "请先尝试重启电脑。如果重启后还有问题，再联系我。"
+    end
+
+state hardware_check:
+    response "重启无效可能是内存条松动或硬盘故障，建议送修。"
+    transition request_repair "我要送修" -> create_ticket
+    transition give_up "算了/不修了" -> finish_bad
+
+state create_ticket:
+    response "已为您创建硬件维修工单，技术人员将在 10 分钟内到达您的工位。"
+    end
+
+state finish_good:
+    response "太棒了！很高兴能帮到您，祝您工作愉快。"
+    end
+
+state finish_bad:
+    response "好的，如有需要随时联系我们。"
+    end
+
+state contact_admin:
+    response "电源问题可能涉及硬件损坏，请直接拨打 8888 联系硬件组。"
+    end

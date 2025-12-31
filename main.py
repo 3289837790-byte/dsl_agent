@@ -1,103 +1,124 @@
 import os
 import sys
-from dotenv import load_dotenv  # 1. 导入 dotenv 加载工具
-from dsl.executor import DSLExecutor
+import time
 
-# 2. 强力修复路径 (防止报错 ModuleNotFoundError)
-# 这两行代码保证了无论你在哪里运行 main.py，它都能找到 dsl 和 llm 包
+# ================= 配置区 =================
+# True  = 本地测试桩 (极速，⚡ 图标，不联网)
+# False = 真实大模型 (智能，🧠 图标，联网)
+USE_STUB = True
+# ==========================================
+
+# 路径适配
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(current_dir)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+from dsl.executor import DSLExecutor
+from llm.wrapper import LLMClient
+
+
+def list_scripts(script_dir):
+    if not os.path.exists(script_dir):
+        return []
+    return [f for f in os.listdir(script_dir) if f.endswith(".rsl")]
 
 
 def main():
-    # 3. 显式加载环境变量 (.env)
-    # 这样程序一启动就会读取你的 API Key，不用等到调用 LLM 时才读
-    load_dotenv()
-
-    # 检查一下 Key 是否加载成功 (调试用，可删)
-    if not os.getenv("LLM_API_KEY"):
-        print("⚠️ 警告: 未检测到 LLM_API_KEY，请检查 .env 文件！")
-
     print("==========================================")
     print("   基于领域特定语言(DSL)的智能Agent系统")
     print("==========================================")
 
-    # --- 新增的代码 START ---
-    model_name = os.getenv("LLM_MODEL", "Unknown-Model")
-    base_url = os.getenv("LLM_BASE_URL", "Unknown-URL")
+    # 1. 初始化 AI 引擎
+    print(f"🚀 引擎加载中... (模式: {'Stub/本地桩' if USE_STUB else 'Real/大模型'})")
+    try:
+        # 使用配置区的开关
+        llm_client = LLMClient(use_stub=USE_STUB)
 
-    print(f"🚀 AI 引擎加载中...")
-    print(f"🔧 服务提供商: SiliconFlow (硅基流动)")
-    print(f"🧠 当前模型: {model_name}")  # 这里会显示 DeepSeek-V3
-    print(f"🔗 接口地址: {base_url}")
-    print("==========================================")
-    # --- 新增的代码 END ---
+        if USE_STUB:
+            print(f"🔧 服务: Local Rule Engine (本地规则引擎)")
+            print(f"⚡ 状态: 离线极速模式")
+        else:
+            print(f"🔧 服务: SiliconFlow (硅基流动)")
+            print(f"🧠 模型: {llm_client.model}")
 
-    # 4. 列出可用脚本
-    script_dir = "scripts"
-    if not os.path.exists(script_dir):
-        os.makedirs(script_dir)
-
-    files = [f for f in os.listdir(script_dir) if f.endswith('.rsl') or f.endswith('.dsl')]
-
-    if not files:
-        print(f"错误：在 {script_dir} 目录下没有找到脚本文件。")
+        print("✅ 接口连接就绪")
+    except Exception as e:
+        print(f"❌ 初始化失败: {e}")
         return
 
-    print("请选择要加载的业务场景：")
-    for idx, f in enumerate(files):
-        print(f"{idx + 1}. {f}")
+    script_dir = "scripts"
 
-    # 5. 用户选择脚本
-    try:
-        choice_str = input("\n请输入序号: ").strip()
-        if not choice_str:
-            choice = 0  # 默认选第一个
-        else:
-            choice = int(choice_str) - 1
+    while True:
+        scripts = list_scripts(script_dir)
+        if not scripts:
+            print(f"❌ 错误: {script_dir} 文件夹为空")
+            return
 
-        selected_file = os.path.join(script_dir, files[choice])
-    except (ValueError, IndexError):
-        print("输入无效，默认加载第一个脚本。")
-        selected_file = os.path.join(script_dir, files[0])
+        print("\n" + "=" * 40)
+        print("📍 请选择业务场景 (输入 q 退出)：")
+        for i, f in enumerate(scripts, 1):
+            print(f"   {i}. {f}")
+        print("=" * 40)
 
-    print(f"\n正在加载脚本: {selected_file} ...")
+        choice = input("请输入序号 > ").strip()
 
-    try:
-        # 6. 初始化执行器
-        executor = DSLExecutor(selected_file)
+        if choice.lower() in ['q', 'quit', 'exit']:
+            print("👋 再见！")
+            break
 
-        # 7. 开始对话循环
-        print(f"Domain: {executor.script.domain}")
-        print("-" * 30)
-
-        # 获取第一句话
-        bot_response = executor.run()
-        print(f"Bot: {bot_response}")
-
-        while not executor.is_finished:
-            user_input = input("User: ").strip()
-
-            if user_input.lower() in ['exit', 'quit', 'q']:
-                print("对话结束。")
-                break
-
-            if not user_input:
+        selected_script_path = None
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(scripts):
+                selected_script_path = os.path.join(script_dir, scripts[idx])
+            else:
+                print("⚠️ 序号无效")
                 continue
+        except ValueError:
+            print("⚠️ 请输入数字")
+            continue
 
-            # 执行一步
-            bot_response = executor.step(user_input)
+        try:
+            print(f"\n📂 正在加载: {scripts[idx]} ...")
+            executor = DSLExecutor(selected_script_path, llm_client)
+            print(f"✅ 解析成功! Domain: {executor.script.domain}")
+        except Exception as e:
+            print(f"❌ 解析失败: {e}")
+            continue
 
-            if bot_response:
-                print(f"Bot: {bot_response}")
+        print("-" * 50)
+        print(f"Bot: {executor.run()}")
 
-        print("-" * 30)
-        print("流程结束 (End of Conversation)")
+        while True:
+            try:
+                user_input = input("\nYou: ").strip()
 
-    except Exception as e:
-        print(f"发生错误: {e}")
-        import traceback
-        traceback.print_exc()
+                if user_input.lower() in ['back', 'menu', '返回']:
+                    print("🔙 返回主菜单...")
+                    break
+
+                if user_input.lower() in ['exit', 'quit', '退出', 'q']:
+                    print("👋 再见！")
+                    sys.exit(0)
+
+                if not user_input: continue
+
+                reply = executor.step(user_input)
+                print(f"Bot: {reply}")
+
+                if executor.is_finished:
+                    print("\n" + "-" * 30)
+                    print("✅ 当前业务流程已结束")
+                    print("-" * 30)
+                    input("按回车键返回主菜单...")
+                    break
+
+            except KeyboardInterrupt:
+                print("\n🔙 强制返回菜单")
+                break
+            except Exception as e:
+                print(f"❌ 运行时错误: {e}")
+                break
 
 
 if __name__ == "__main__":

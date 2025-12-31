@@ -2,26 +2,32 @@ domain "电商客服机器人"
 
 state start:
     response "您好，这里是京东商城。请问您是想查询物流，还是申请退款？"
-    transition query_logistics "查询物流状态" -> ask_order_id
-    transition request_refund "申请退款" -> ask_refund_reason
+    transition intent_logistics "查询物流/查快递/物流" -> check_logistics
+    transition intent_refund "申请退款/退货/退款" -> ask_refund_reason
 
-state ask_order_id:
+state check_logistics:
     response "好的，请提供您的订单号。"
-    transition provide_order_id "提供订单号" -> show_logistics
+    # 只要命中了上面的 wrapper 数字逻辑，或者输入包含“订单”，都会走这里
+    transition got_order_id "订单号/订单/单号" -> show_status
 
-state show_logistics:
+state show_status:
     response "您的订单正在派送中，预计明天送达。"
     end
 
 state ask_refund_reason:
     response "很抱歉给您带来不便。请问退款原因是什么？（质量问题/拍错了/不想要了）"
-    transition reason_quality "质量问题" -> human_service
-    transition reason_mistake "拍错了或不想要了" -> confirm_refund
+    transition reason_quality "质量问题/坏了/质量" -> refund_quality
+    transition reason_mistake "拍错了/买错了" -> refund_mistake
+    transition reason_dislike "不想要了/不喜欢/不需要" -> refund_dislike
 
-state human_service:
-    response "检测到质量问题，正在为您转接人工客服，请稍候..."
+state refund_quality:
+    response "质量问题我们可以免费上门取件。申请已提交。"
     end
 
-state confirm_refund:
+state refund_mistake:
+    response "拍错没关系，只要未拆封均可退货。申请已提交。"
+    end
+
+state refund_dislike:
     response "明白，退款申请已提交，系统将自动审核。"
     end

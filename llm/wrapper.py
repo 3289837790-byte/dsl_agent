@@ -2,32 +2,57 @@ import os
 import json
 import urllib.request
 import urllib.error
+import socket
 import time
 from dotenv import load_dotenv
 
 
 class LLMClient:
-    def __init__(self):
+    def __init__(self, use_stub=False):
         load_dotenv()
+        env_mode = os.getenv("RUN_MODE", "real").lower()
+        self.use_stub = use_stub or (env_mode == "stub")
+
         self.api_key = os.getenv("LLM_API_KEY")
-        self.base_url = os.getenv("LLM_BASE_URL")
-        self.model = os.getenv("LLM_MODEL")
+        self.base_url = os.getenv("LLM_BASE_URL", "https://api.siliconflow.cn/v1")
+        self.model = os.getenv("LLM_MODEL", "deepseek-ai/DeepSeek-V3")
 
-        self.base_url = self.base_url.rstrip('/')
-        self.api_url = f"{self.base_url}/v1/chat/completions" if not self.base_url.endswith(
-            "/v1") else f"{self.base_url}/chat/completions"
+        if "/v1" in self.base_url:
+            self.api_url = self.base_url.rstrip("/") + "/chat/completions"
+        else:
+            self.api_url = self.base_url.rstrip("/") + "/v1/chat/completions"
 
-        proxy_url = os.getenv("https_proxy") or os.getenv("http_proxy")
-        if proxy_url:
-            proxy_handler = urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url})
+        self.proxy_url = os.getenv("http_proxy")
+        if self.proxy_url:
+            proxy_handler = urllib.request.ProxyHandler({
+                'http': self.proxy_url,
+                'https': self.proxy_url
+            })
             opener = urllib.request.build_opener(proxy_handler)
             urllib.request.install_opener(opener)
 
+    def _local_stub_match(self, user_input, choices):
+        """本地匹配逻辑 - 修正版"""
+        for choice in choices:
+            # 1. 关键词拆分
+            keywords = choice.split('/')
+            for kw in keywords:
+                # 【核心修改】只保留单向匹配：用户输入必须包含关键词
+                # 删除了 'or user_input in kw'，防止 "感兴趣" 匹配到 "不感兴趣"
+                if kw in user_input:
+                    return choice
+
+            # 2. 数字特判 (保留)
+            if user_input.isdigit() and ("订单" in choice or "单号" in choice):
+                return choice
+        return None
+
     def chat(self, prompt, retry_count=3):
+        if self.use_stub: return None
+
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
+            "Authorization": f"Bearer {self.api_key}"
         }
         data = {
             "model": self.model,
@@ -37,46 +62,46 @@ class LLMClient:
 
         for attempt in range(retry_count):
             try:
-                # --- 核心改动 1: 基础冷却时间增加到 3 秒 ---
-                # 对于免费版 API，慢就是稳
-                time.sleep(3.0)
-
+                if attempt > 0: time.sleep(1.5)
                 req = urllib.request.Request(
                     self.api_url,
                     data=json.dumps(data).encode('utf-8'),
                     headers=headers
                 )
-                with urllib.request.urlopen(req, timeout=30) as response:
+                with urllib.request.urlopen(req, timeout=60) as response:
                     res_json = json.loads(response.read().decode('utf-8'))
                     return res_json['choices'][0]['message']['content'].strip()
-
-            except urllib.error.HTTPError as e:
-                error_detail = e.read().decode('utf-8')
-                # --- 核心改动 2: 遇到 403/429 报错，直接死等 25 秒 ---
-                # 这通常意味着这一分钟额度用完了，等 25 秒跨入下一个分钟窗口
-                if (e.code == 403 or e.code == 429) and attempt < retry_count - 1:
-                    wait_time = 25
-                    print(f"\n[!] 触发额度限制 (RPM)，正在执行深度冷却 {wait_time} 秒以解锁...")
-                    time.sleep(wait_time)
-                    continue
-
-                print(f"❌ LLM 调用最终失败 (HTTP {e.code}): {error_detail}")
-                return "Error"
-            except Exception as e:
-                print(f"❌ 网络错误: {e}")
-                return "Error"
-        return "Error"
+            except Exception:
+                pass
+        return None
 
     def recognize_intent(self, user_input, choices):
-        # 简化 Prompt，减少 Token 消耗，有时能稍微缓解频率压力
-        prompt = f"Categorize intent. Input: '{user_input}'. Choices: {choices}. Return ONLY the word."
-        result = self.chat(prompt)
+        # 1. Stub 模式
+        if self.use_stub:
+            match = self._local_stub_match(user_input, choices)
+            if match:
+                print(f"   (⚡ Stub命中: '{user_input}' -> '{match}')")
+                return match
+            return "unknown"
 
-        if result == "Error": return "unknown"
+        # 2. Real 模式
+        print(f"   (🧠 大模型正在思考: '{user_input}'...)")
 
-        # 增强清理逻辑
-        clean_result = result.lower().replace(".", "").replace("\"", "").strip()
-        for choice in choices:
-            if choice.lower() in clean_result:
-                return choice
+        prompt = f"用户输入:'{user_input}'\n候选:{choices}\n请选出最匹配的一项，只返回文字。"
+        ai_result = self.chat(prompt)
+
+        if ai_result:
+            for choice in choices:
+                if choice in ai_result:
+                    return choice
+
+        # 4. 降级
+        fallback_match = self._local_stub_match(user_input, choices)
+        if fallback_match:
+            return fallback_match
+
         return "unknown"
+
+
+def get_llm_client(use_stub=False):
+    return LLMClient(use_stub=use_stub)
